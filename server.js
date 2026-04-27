@@ -2,96 +2,147 @@ const express = require('express');
 const app = express();
 const PORT = 3000;
 
-// =====================
-// BASIC ROUTES
-// =====================
-app.get('/', (req, res) => {
-    res.send('Welcome to CommunityHub API');
-});
-
-app.get('/about', (req, res) => {
-    res.send('CommunityHub - A community platform');
-});
-
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString()
-    });
-});
+// Middleware to read JSON body
+app.use(express.json());
 
 // =====================
-// RESPONSE METHODS
+// IN-MEMORY DATABASE
 // =====================
-app.get('/text', (req, res) => {
-    res.send('Plain text response');
-});
+let posts = [
+    {
+        id: 1,
+        title: "Getting Started with Node.js",
+        content: "Node.js is a JavaScript runtime...",
+        author: "John Doe",
+        createdAt: "2026-01-15T10:00:00Z",
+        likes: 10
+    },
+    {
+        id: 2,
+        title: "Express.js Fundamentals",
+        content: "Express is a web framework...",
+        author: "Jane Smith",
+        createdAt: "2026-01-16T14:30:00Z",
+        likes: 15
+    }
+];
 
-app.get('/json', (req, res) => {
-    res.json({
-        message: 'JSON response',
-        success: true
-    });
-});
-
-app.get('/error', (req, res) => {
-    res.status(400).json({
-        error: 'Bad request'
-    });
-});
-
-app.get('/new-page', (req, res) => {
-    res.send('Welcome to the new page!');
-});
-
-app.get('/old-page', (req, res) => {
-    res.redirect('/new-page');
-});
+let nextId = 3;
 
 // =====================
-// ROUTE PARAMETERS
+// GET ALL POSTS
 // =====================
-app.get('/users/:id', (req, res) => {
-    res.json({
-        message: `Getting user ${req.params.id}`
-    });
-});
+app.get('/api/posts', (req, res) => {
+    const { author, sort } = req.query;
 
-app.get('/posts/:postId/comments/:commentId', (req, res) => {
-    const { postId, commentId } = req.params;
+    let result = [...posts];
 
-    res.json({ postId, commentId });
+    if (author) {
+        result = result.filter(p =>
+            p.author.toLowerCase().includes(author.toLowerCase())
+        );
+    }
+
+    if (sort === 'newest') {
+        result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else if (sort === 'popular') {
+        result.sort((a, b) => b.likes - a.likes);
+    }
+
+    res.json(result);
 });
 
 // =====================
-// QUERY STRINGS
+// GET SINGLE POST
 // =====================
-app.get('/search', (req, res) => {
-    const { q, limit = 10, page = 1 } = req.query;
+app.get('/api/posts/:id', (req, res) => {
+    const post = posts.find(p => p.id === parseInt(req.params.id));
 
-    res.json({
-        query: q,
-        limit: parseInt(limit),
-        page: parseInt(page)
-    });
-});
+    if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+    }
 
-app.get('/posts', (req, res) => {
-    const { category, sort = 'newest' } = req.query;
-
-    res.json({
-        message: 'Getting posts',
-        filters: { category, sort }
-    });
+    res.json(post);
 });
 
 // =====================
-// 404 HANDLER (MUST BE LAST)
+// CREATE POST
+// =====================
+app.post('/api/posts', (req, res) => {
+    const { title, content, author } = req.body;
+
+    if (!title || !content || !author) {
+        return res.status(400).json({
+            error: 'Title, content, and author are required'
+        });
+    }
+
+    const newPost = {
+        id: nextId++,
+        title,
+        content,
+        author,
+        createdAt: new Date().toISOString(),
+        likes: 0
+    };
+
+    posts.push(newPost);
+    res.status(201).json(newPost);
+});
+
+// =====================
+// UPDATE POST (PUT)
+// =====================
+app.put('/api/posts/:id', (req, res) => {
+    const post = posts.find(p => p.id === parseInt(req.params.id));
+
+    if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const { title, content } = req.body;
+
+    post.title = title || post.title;
+    post.content = content || post.content;
+    post.updatedAt = new Date().toISOString();
+
+    res.json(post);
+});
+
+// =====================
+// DELETE POST
+// =====================
+app.delete('/api/posts/:id', (req, res) => {
+    const index = posts.findIndex(p => p.id === parseInt(req.params.id));
+
+    if (index === -1) {
+        return res.status(404).json({ error: 'Post not found' });
+    }
+
+    posts.splice(index, 1);
+    res.status(204).send();
+});
+
+// =====================
+// LIKE POST (PATCH)
+// =====================
+app.patch('/api/posts/:id/like', (req, res) => {
+    const post = posts.find(p => p.id === parseInt(req.params.id));
+
+    if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+    }
+
+    post.likes += 1;
+
+    res.json(post);
+});
+
+// =====================
+// 404 HANDLER (LAST)
 // =====================
 app.use((req, res) => {
-    res.status(404).json({
-        error: 'Route not found'
-    });
+    res.status(404).json({ error: 'Route not found' });
 });
 
 // =====================
