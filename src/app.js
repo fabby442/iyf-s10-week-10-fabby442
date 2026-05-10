@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 
 const logger = require('./middleware/logger');
@@ -15,7 +17,7 @@ app.use(logger);
 // Routes
 app.use('/api', routes);
 
-// Error handler
+// Error handler (must be last)
 app.use(errorHandler);
 
 module.exports = app;
